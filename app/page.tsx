@@ -107,7 +107,7 @@ export default function Home() {
                     <input
                       name="message"
                       type="text"
-                      placeholder="What's the price of Bitcoin on coinbase today ?"
+                      placeholder="Tell me about getmytsi.org , go there - what do they do?"
                       className="w-full bg-black/30 text-pink-200 placeholder-pink-400
                                  px-4 py-3 pr-[90px] focus:outline-none focus:bg-black/40
                                  rounded-full"
