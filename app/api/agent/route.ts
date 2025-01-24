@@ -1,76 +1,88 @@
+// app/api/agent/route.ts
+
 import { NextResponse } from 'next/server';
 import { openai } from "@ai-sdk/openai";
-import { CoreMessage, generateObject, UserContent } from "ai";
+import { generateObject, CoreMessage, UserContent } from "ai";
 import { z } from "zod";
-import { ObserveResult, Stagehand } from "@browserbasehq/stagehand";
+import { Stagehand, ObserveResult } from "@browserbasehq/stagehand";
 
+////////////////////////////////////////////////////
+// Setup your OpenAI & Stagehand clients
+////////////////////////////////////////////////////
 const LLMClient = openai("gpt-4o");
 
 type Step = {
   text: string;
   reasoning: string;
-  tool: "GOTO" | "ACT" | "EXTRACT" | "OBSERVE" | "CLOSE" | "WAIT" | "NAVBACK";
+  tool:
+    | "GOTO"
+    | "ACT"
+    | "EXTRACT"
+    | "OBSERVE"
+    | "CLOSE"
+    | "WAIT"
+    | "NAVBACK";
   instruction: string;
 };
 
+////////////////////////////////////////////////////
+// runStagehand: executes a single tool action
+////////////////////////////////////////////////////
 async function runStagehand({
   sessionID,
   method,
   instruction,
 }: {
   sessionID: string;
-  method: "GOTO" | "ACT" | "EXTRACT" | "CLOSE" | "SCREENSHOT" | "OBSERVE" | "WAIT" | "NAVBACK";
+  method:
+    | "GOTO"
+    | "ACT"
+    | "EXTRACT"
+    | "OBSERVE"
+    | "CLOSE"
+    | "SCREENSHOT"
+    | "WAIT"
+    | "NAVBACK";
   instruction?: string;
 }) {
+  // Create Stagehand with existing session or new session
   const stagehand = new Stagehand({
     browserbaseSessionID: sessionID,
     env: "BROWSERBASE",
     logger: () => {},
   });
-  await stagehand.init();
 
+  await stagehand.init();
   const page = stagehand.page;
 
   try {
     switch (method) {
       case "GOTO":
-        await page.goto(instruction!, {
-          waitUntil: "commit",
-          timeout: 60000,
-        });
+        await page.goto(instruction!, { waitUntil: "commit", timeout: 60000 });
         break;
-
       case "ACT":
         await page.act(instruction!);
         break;
-
       case "EXTRACT": {
         const { extraction } = await page.extract(instruction!);
         return extraction;
       }
-
       case "OBSERVE":
         return await page.observe({
           instruction,
           useAccessibilityTree: true,
         });
-
       case "CLOSE":
-        await stagehand.close();
+        await stagehand.close(); // This permanently ends the session
         break;
-
       case "SCREENSHOT": {
         const cdpSession = await page.context().newCDPSession(page);
         const { data } = await cdpSession.send("Page.captureScreenshot");
         return data;
       }
-
       case "WAIT":
-        await new Promise((resolve) =>
-          setTimeout(resolve, Number(instruction))
-        );
+        await new Promise((resolve) => setTimeout(resolve, Number(instruction)));
         break;
-
       case "NAVBACK":
         await page.goBack();
         break;
@@ -81,6 +93,9 @@ async function runStagehand({
   }
 }
 
+////////////////////////////////////////////////////
+// sendPrompt: asks the LLM to generate next step
+////////////////////////////////////////////////////
 async function sendPrompt({
   goal,
   sessionID,
@@ -94,23 +109,28 @@ async function sendPrompt({
 }) {
   let currentUrl = "";
 
+  // Attempt to get the current browser URL
   try {
-    const stagehand = new Stagehand({
-      browserbaseSessionID: sessionID,
-      env: "BROWSERBASE"
+    const urlResult = await runStagehand({
+      sessionID,
+      method: "EXTRACT",
+      instruction: "return document.location.href",
     });
-    await stagehand.init();
-    currentUrl = await stagehand.page.url();
-    await stagehand.close();
+    if (typeof urlResult === "string") {
+      currentUrl = urlResult;
+    }
   } catch (error) {
-    console.error('Error getting page info:', error);
+    console.error("Error getting page info:", error);
   }
 
   const content: UserContent = [
     {
       type: "text",
-      text: `Consider the following screenshot of a web page${currentUrl ? ` (URL: ${currentUrl})` : ''}, with the goal being "${goal}".
-${previousSteps.length > 0
+      text: `Consider the following screenshot of a web page${
+        currentUrl ? ` (URL: ${currentUrl})` : ""
+      }, with the goal being "${goal}".
+${
+  previousSteps.length > 0
     ? `Previous steps taken:
 ${previousSteps
   .map(
@@ -119,36 +139,38 @@ Step ${index + 1}:
 - Action: ${step.text}
 - Reasoning: ${step.reasoning}
 - Tool Used: ${step.tool}
-- Instruction: ${step.instruction}
-`
+- Instruction: ${step.instruction}`
   )
   .join("\n")}`
     : ""
 }
-Determine the immediate next step to take to achieve the goal. 
+Determine the immediate next step to take to achieve the goal.
 
 Important guidelines:
-1. Break down complex actions into individual atomic steps
-2. For ACT commands, use only one action at a time, such as:
-   - Single click on a specific element
-   - Type into a single input field
-   - Select a single option
-3. Avoid combining multiple actions in one instruction
-4. If multiple actions are needed, they should be separate steps
-
-If the goal has been achieved, return "close".`,
+1. Break down complex actions into small atomic steps
+2. For ACT commands, use only one action at a time (click, type, etc.)
+3. Avoid combining multiple actions into one step
+4. If multiple actions are needed, separate them into multiple steps
+5. If the goal is achieved, return "CLOSE".`,
     },
   ];
 
-  // Add screenshot if navigated to a page previously
-  if (previousSteps.length > 0 && previousSteps.some((step) => step.tool === "GOTO")) {
-    content.push({
-      type: "image",
-      image: (await runStagehand({
+  // If they've used GOTO before, include a screenshot
+  if (previousSteps.some((step) => step.tool === "GOTO")) {
+    try {
+      const screenshot = await runStagehand({
         sessionID,
         method: "SCREENSHOT",
-      })) as string,
-    });
+      });
+      if (typeof screenshot === "string") {
+        content.push({
+          type: "image",
+          image: screenshot,
+        });
+      }
+    } catch (err) {
+      console.error("Error capturing screenshot:", err);
+    }
   }
 
   if (previousExtraction) {
@@ -165,6 +187,7 @@ If the goal has been achieved, return "close".`,
     content,
   };
 
+  // Use zod to parse the LLM response into a Step
   const result = await generateObject({
     model: LLMClient,
     schema: z.object({
@@ -190,139 +213,180 @@ If the goal has been achieved, return "close".`,
   };
 }
 
+////////////////////////////////////////////////////
+// selectStartingUrl: picks a URL to begin with
+////////////////////////////////////////////////////
 async function selectStartingUrl(goal: string) {
   const message: CoreMessage = {
     role: "user",
-    content: [{
-      type: "text",
-      text: `Given the goal: "${goal}", determine the best URL to start from.
+    content: [
+      {
+        type: "text",
+        text: `Given the goal: "${goal}", determine the best URL to start from.
 Choose from:
 1. A relevant search engine (Google, Bing, etc.)
-2. A direct URL if you're confident about the target website
-3. Any other appropriate starting point
+2. A direct URL if confident about the target
+3. Another appropriate starting point
 
-Return a URL that would be most effective for achieving this goal.`
-    }]
+Return a URL that is most effective for this goal.`,
+      },
+    ],
   };
 
   const result = await generateObject({
     model: LLMClient,
     schema: z.object({
       url: z.string().url(),
-      reasoning: z.string()
+      reasoning: z.string(),
     }),
-    messages: [message]
+    messages: [message],
   });
 
   return result.object;
 }
 
+////////////////////////////////////////////////////
+// GET /api/agent - a simple readiness check
+////////////////////////////////////////////////////
 export async function GET() {
-  return NextResponse.json({ message: 'Agent API endpoint ready' });
+  return NextResponse.json({ message: "Agent API endpoint ready" });
 }
 
+////////////////////////////////////////////////////
+// POST /api/agent - the main logic
+////////////////////////////////////////////////////
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { goal, sessionId, previousSteps = [], action } = body;
+    const { goal, sessionId, previousSteps = [], action, step } = body;
 
     if (!sessionId) {
       return NextResponse.json(
-        { error: 'Missing sessionId in request body' },
+        { error: "Missing sessionId in request body" },
         { status: 400 }
       );
     }
 
-    // Handle different action types
     switch (action) {
-      case 'START': {
+      ////////////////////////////////////////////////////
+      // 1) START
+      ////////////////////////////////////////////////////
+      case "START": {
         if (!goal) {
           return NextResponse.json(
-            { error: 'Missing goal in request body' },
+            { error: "Missing goal in request body" },
             { status: 400 }
           );
         }
-
-        // Handle first step with URL selection
+        // Pick the starting URL
         const { url, reasoning } = await selectStartingUrl(goal);
-        const firstStep = {
+        const firstStep: Step = {
           text: `Navigating to ${url}`,
           reasoning,
-          tool: "GOTO" as const,
-          instruction: url
+          tool: "GOTO",
+          instruction: url,
         };
-        
+
         await runStagehand({
           sessionID: sessionId,
           method: "GOTO",
-          instruction: url
+          instruction: url,
         });
 
-        return NextResponse.json({ 
+        return NextResponse.json({
           success: true,
           result: firstStep,
           steps: [firstStep],
-          done: false
+          done: false,
         });
       }
 
-      case 'GET_NEXT_STEP': {
+      ////////////////////////////////////////////////////
+      // 2) GET_NEXT_STEP
+      ////////////////////////////////////////////////////
+      case "GET_NEXT_STEP": {
         if (!goal) {
           return NextResponse.json(
-            { error: 'Missing goal in request body' },
+            { error: "Missing goal in request body" },
             { status: 400 }
           );
         }
 
-        // Get the next step from the LLM
+        // Ask the LLM for the next step
         const { result, previousSteps: newPreviousSteps } = await sendPrompt({
           goal,
           sessionID: sessionId,
           previousSteps,
         });
 
+        // If the LLM suggests "CLOSE", also automatically close the session
+        const isDone = result.tool === "CLOSE";
+
+        if (isDone) {
+          await runStagehand({
+            sessionID: sessionId,
+            method: "CLOSE",
+          });
+        }
+
         return NextResponse.json({
           success: true,
           result,
           steps: newPreviousSteps,
-          done: result.tool === "CLOSE"
+          done: isDone,
         });
       }
 
-      case 'EXECUTE_STEP': {
-        const { step } = body;
+      ////////////////////////////////////////////////////
+      // 3) EXECUTE_STEP
+      ////////////////////////////////////////////////////
+      case "EXECUTE_STEP": {
         if (!step) {
           return NextResponse.json(
-            { error: 'Missing step in request body' },
+            { error: "Missing step in request body" },
             { status: 400 }
           );
         }
-
-        // Execute the step using Stagehand
+        // Run the requested step
         const extraction = await runStagehand({
           sessionID: sessionId,
           method: step.tool,
           instruction: step.instruction,
         });
 
+        // If the user explicitly executed "CLOSE", shut down the session
+        const isDone = step.tool === "CLOSE";
+        if (isDone) {
+          await runStagehand({
+            sessionID: sessionId,
+            method: "CLOSE",
+          });
+        }
+
         return NextResponse.json({
           success: true,
           extraction,
-          done: step.tool === "CLOSE"
+          done: isDone,
         });
       }
 
       default:
         return NextResponse.json(
-          { error: 'Invalid action type' },
+          { error: "Invalid action type" },
           { status: 400 }
         );
     }
-  } catch (error) {
-    console.error('Error in agent endpoint:', error);
+  } catch (error: unknown) {
+    console.error("Error in agent endpoint:", error);
+
+    let errorMessage = "Failed to process request.";
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+
     return NextResponse.json(
-      { success: false, error: 'Failed to process request' },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }
-} 
+}

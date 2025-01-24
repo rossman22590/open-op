@@ -92,7 +92,7 @@ async function createSession(timezone?: string) {
   const session = await bb.sessions.create({
     projectId: process.env.BROWSERBASE_PROJECT_ID!,
     browserSettings,
-    keepAlive: true,
+    keepAlive: false,
     region: getClosestRegion(timezone),
   });
   return session;
