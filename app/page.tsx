@@ -161,44 +161,7 @@ export default function Home() {
                     Best upper-body exercises
                   </button>
                 </div>
-                <div className="grid grid-cols-2 gap-3 w-full">
-                  <button
-                    onClick={() =>
-                      startChat("Plan a weeknight dinner menu with quick, healthy recipes.")
-                    }
-                    className="p-3 text-sm bg-black/20 hover:bg-black/40 text-pink-200 
-                               rounded-md transition-colors text-left"
-                  >
-                    Quick healthy dinner ideas
-                  </button>
-                  <button
-                    onClick={() =>
-                      startChat("Find me a quality set of watercolor paints under $50.")
-                    }
-                    className="p-3 text-sm bg-black/20 hover:bg-black/40 text-pink-200 
-                               rounded-md transition-colors text-left"
-                  >
-                    Watercolor paints under $50
-                  </button>
-                  <button
-                    onClick={() =>
-                      startChat("What are the key differences between iOS and Android development?")
-                    }
-                    className="p-3 text-sm bg-black/20 hover:bg-black/40 text-pink-200 
-                               rounded-md transition-colors text-left"
-                  >
-                    iOS vs Android dev
-                  </button>
-                  <button
-                    onClick={() =>
-                      startChat("Show me the best deals on flights to Tokyo next month.")
-                    }
-                    className="p-3 text-sm bg-black/20 hover:bg-black/40 text-pink-200 
-                               rounded-md transition-colors text-left"
-                  >
-                    Flight deals to Tokyo
-                  </button>
-                </div>
+              
               </div>
             </div>
           </main>
