@@ -144,7 +144,7 @@ Step ${index + 1}:
   .join("\n")}`
     : ""
 }
-Determine the immediate next step to take to achieve the goal.
+REMEMBER ALWAYS USE YOUR TOOLS. Close pup ups and solve capthas .Determine the immediate next step to take to achieve the goal.
 
 Important guidelines:
 1. Break down complex actions into small atomic steps

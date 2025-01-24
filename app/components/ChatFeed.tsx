@@ -51,7 +51,6 @@ export default function ChatFeed({ initialMessage, onClose }: ChatFeedProps) {
     steps: [],
   });
 
-  // Smoothly scroll to the latest message
   const scrollToBottom = useCallback(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTo({
@@ -61,7 +60,6 @@ export default function ChatFeed({ initialMessage, onClose }: ChatFeedProps) {
     }
   }, []);
 
-  // If the last step is "CLOSE", the agent is finished
   useEffect(() => {
     if (
       uiState.steps.length > 0 &&
@@ -80,12 +78,10 @@ export default function ChatFeed({ initialMessage, onClose }: ChatFeedProps) {
     }
   }, [uiState.sessionId, uiState.steps]);
 
-  // Scroll to latest message on each step update
   useEffect(() => {
     scrollToBottom();
   }, [uiState.steps, scrollToBottom]);
 
-  // Initialize session once
   useEffect(() => {
     const initializeSession = async () => {
       if (initializationRef.current) return;
@@ -119,7 +115,6 @@ export default function ChatFeed({ initialMessage, onClose }: ChatFeedProps) {
             steps: [],
           });
 
-          // "START" the agent
           const response = await fetch("/api/agent", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -146,9 +141,7 @@ export default function ChatFeed({ initialMessage, onClose }: ChatFeedProps) {
               steps: agentStateRef.current.steps,
             }));
 
-            // Subsequent steps
             while (true) {
-              // GET_NEXT_STEP
               const nextStepRes = await fetch("/api/agent", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -179,7 +172,6 @@ export default function ChatFeed({ initialMessage, onClose }: ChatFeedProps) {
                 break;
               }
 
-              // EXECUTE_STEP
               const executeRes = await fetch("/api/agent", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -231,15 +223,14 @@ export default function ChatFeed({ initialMessage, onClose }: ChatFeedProps) {
 
   return (
     <motion.div
-      className="min-h-screen bg-gradient-to-tl from-black via-black to-pink-900 text-pink-200 flex flex-col"
+      className="h-screen w-screen bg-gradient-to-tl from-black via-black to-pink-900 text-pink-200 flex flex-col overflow-hidden"
       variants={containerVariants}
       initial="hidden"
       animate="visible"
       exit="exit"
     >
-      {/* Top Nav */}
       <motion.nav
-        className="flex justify-between items-center px-8 py-4 bg-black/70 backdrop-blur-sm shadow-lg"
+        className="flex justify-between items-center px-8 py-2 bg-black/70 backdrop-blur-sm shadow-lg"
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.2 }}
@@ -264,36 +255,27 @@ export default function ChatFeed({ initialMessage, onClose }: ChatFeedProps) {
         </motion.button>
       </motion.nav>
 
-      {/* Main Layout */}
-      <main className="flex-1 w-full flex flex-col items-center p-4">
+      <main className="flex-1 flex overflow-hidden">
         <motion.div
-          className="w-full h-[calc(100vh-7rem)] bg-[#1a1a1a]/80 rounded-xl shadow-2xl overflow-hidden border border-pink-600/30 flex flex-col"
+          className="w-full h-full bg-[#1a1a1a]/80 shadow-2xl overflow-hidden border border-pink-600/30 flex flex-col"
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.3 }}
         >
-          <div className="w-full h-12 bg-[#1a1a1a]/90 flex items-center px-4 border-b border-pink-600/30">
-            {/* Mini top bar pills */}
+          <div className="w-full h-8 bg-[#1a1a1a]/90 flex items-center px-4 border-b border-pink-600/30">
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-pink-600" />
-              <div className="w-3 h-3 rounded-full bg-pink-400" />
-              <div className="w-3 h-3 rounded-full bg-pink-400" />
+              <div className="w-2 h-2 rounded-full bg-pink-600" />
+              <div className="w-2 h-2 rounded-full bg-pink-400" />
+              <div className="w-2 h-2 rounded-full bg-pink-400" />
             </div>
           </div>
-          {(() => {
-            console.log("Session URL:", uiState.sessionUrl);
-            return null;
-          })()}
 
-          {/* Chat On Left, Browser On Right */}
-          <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-            {/* Chat Column */}
-            <div className="md:w-[420px] flex flex-col border-b md:border-b-0 md:border-r border-pink-600/30">
+          <div className="flex-1 flex overflow-hidden">
+            <div className="w-[420px] flex flex-col border-r border-pink-600/30">
               <div
                 ref={chatContainerRef}
                 className="flex-1 overflow-y-auto overflow-x-hidden space-y-4 p-4 scrollbar-thin scrollbar-thumb-pink-800 scrollbar-track-transparent"
               >
-                {/* User's Initial Goal */}
                 {initialMessage && (
                   <motion.div
                     variants={messageVariants}
@@ -304,7 +286,6 @@ export default function ChatFeed({ initialMessage, onClose }: ChatFeedProps) {
                   </motion.div>
                 )}
 
-                {/* Steps */}
                 {uiState.steps.map((step, index) => (
                   <motion.div
                     key={index}
@@ -327,7 +308,6 @@ export default function ChatFeed({ initialMessage, onClose }: ChatFeedProps) {
                   </motion.div>
                 ))}
 
-                {/* Loading Indicator */}
                 {isLoading && (
                   <motion.div
                     variants={messageVariants}
@@ -339,13 +319,12 @@ export default function ChatFeed({ initialMessage, onClose }: ChatFeedProps) {
               </div>
             </div>
 
-            {/* Browser Column */}
-            <div className="flex-1 p-2 md:p-4">
+            <div className="flex-1">
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.4 }}
-                className="w-full h-full rounded-lg overflow-hidden bg-black/40 flex items-center justify-center"
+                className="w-full h-full bg-black/40 flex items-center justify-center"
               >
                 {(!uiState.sessionUrl || isAgentFinished) ? (
                   <p className="text-pink-300 text-center px-6 py-2">
