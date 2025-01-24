@@ -85,7 +85,7 @@ export default function Home() {
                     AI Tutor Browser
                   </h1>
                   <p className="text-base text-pink-300/80 text-center">
-                    Hit "Run" to watch AI browse the web.
+                    Hit &quot;Run&quot; to watch AI browse the web.
                   </p>
                 </div>
 
@@ -107,7 +107,7 @@ export default function Home() {
                     <input
                       name="message"
                       type="text"
-                      placeholder="What's the price of NVIDIA stock?"
+                      placeholder="What's the price of AAPL stock?"
                       className="w-full bg-black/30 text-pink-200 placeholder-pink-400
                                  px-4 py-3 pr-[90px] focus:outline-none focus:bg-black/40
                                  rounded-full"
